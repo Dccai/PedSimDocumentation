@@ -1,3 +1,6 @@
 site_name: PedSim Documentation
 theme:
   name: mkdocs
+
+nav:
+  - Home: index.md
