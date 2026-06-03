@@ -111,3 +111,48 @@ The `Simulator.cpp` acts as the primary orchestrator. It does not calculate forc
 | **Environment Getters** | `getWalls()`, `getObstacles()`, `getWaypoints()` retrieve geometry from the scene. |
 | **publishPedSimAgents()** | Publishes all updated agent data to the `simulated_agents` topic. |
 | **onPedsimAgents()** | Receives Python force overrides from `pedsim_agents_feedback` and applies them to agents. |
+
+---
+
+## `SCENE.moveAllAgents()` - The Physics Engine
+
+### What it does (`scene.cpp`)
+* **Scene Management:** Acts as a wrapper function that handles high-level scene management, including cleanup, dissolving agent clusters, and updating simulation time.
+* **Delegation:** Delegates the actual core physics calculations to the physics engine via `Ped::Tscene::moveAgents(h)`.
+
+### The 3-Phase Update Cycle (`ped_scene.cpp`)
+Located within `Ped::Tscene::moveAgents(h)`, the agent update cycle operates in three distinct phases per frame:
+
+1. **Phase 1: `agent->updateState()`**
+   * Calls `agent.cpp`, which in turn triggers `agentstatemachine.cpp::doStateTransition()`.
+   * Evaluates if the agent's state should change based on current conditions and probabilities.
+   * Configures forces, velocity multipliers, and the waypoint planner via `activateState()`.
+2. **Phase 2: `agent->computeForces()`**
+   * Calculates all active C++ forces (desired, social, obstacle, robot, keepdistance, custom).
+   * **Override:** Bypasses these calculations and uses the Python force overlay if the `isForceOverridden` flag is set.
+3. **Phase 3: `agent->move(h)`**
+   * Utilizes Euler integration to update the pedestrian's velocity, followed by their new position in the environment.
+
+---
+
+## How to Modify PedSim Parameters
+
+### Force Factor Tuning (0-10 Multipliers)
+* **GUI Sliders (Easiest):** Use `rqt_reconfigure` to tune forces dynamically (e.g., desired, social, obstacle, robot, group_gaze) on a 0-10 scale. These tuned values are processed in real-time by `simulator.cpp::reconfigureCB()`.
+* **Persistent Config File:** Edit the `PedsimSimulator.cfg` file to set default values for force factors prior to launch. 
+  * *Code Structure:* `gen.add('parameter_name', data_type, 0, 'Description', DEFAULT_VALUE, MIN, MAX)`
+
+### Behavior Probabilities
+These variables dictate how frequently specific states are triggered. They are located in the `agent.cpp` constructor. Modifying these values will make agents talk more or less frequently, run more often, etc.
+
+* `chattingProbability = 0.01` (1% chance per frame to start talking)
+* `tellStoryProbability = 0.01` (1% chance per frame to tell a story)
+* `switchRunningWalkingProbability = 0.1` (10% chance per frame to switch pace)
+
+### State Duration Tuning
+These variables dictate the base length of specific states and are located in the `agent.cpp` constructor. Increase these values to make states last longer, or decrease them to force quicker transitions.
+
+* `stateTalkingBaseTime = 10.0` (10 seconds base, randomized between 0.5x and 1.5x)
+* `stateTellStoryBaseTime = 20.0`
+* `stateGroupTalkingBaseTime = 20.0`
+* `stateRequestingServiceBaseTime = 5.0`
